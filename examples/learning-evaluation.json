@@ -1,0 +1,12 @@
+{
+  "complaint_fixed": true,
+  "unseen": [
+    {"blind": true, "preference": "new", "major_regression": false, "reference": "REPLACE: human comparison of unseen case 1"},
+    {"blind": true, "preference": "tie", "major_regression": false, "reference": "REPLACE: human comparison of unseen case 2"},
+    {"blind": true, "preference": "tie", "major_regression": false, "reference": "REPLACE: human comparison of unseen case 3"}
+  ],
+  "hard_constraints_lost": 0,
+  "time_compared": true,
+  "cost_impact": "unknown",
+  "evidence": "ILLUSTRATIVE ONLY: replace with actual evaluation record; this file is not evidence"
+}

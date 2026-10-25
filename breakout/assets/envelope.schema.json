@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["message", "issues", "proposal", "reviewed_revision", "questions", "alternatives", "constraints_kept"],
+  "properties": {
+    "message": {"type": "string"},
+    "proposal": {"type": "string"},
+    "reviewed_revision": {"type": "string"},
+    "questions": {"type": "array", "items": {"type": "string"}},
+    "alternatives": {"type": "array", "items": {"type": "string"}},
+    "constraints_kept": {"type": "array", "items": {"type": "string"}},
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "status", "resolution", "objection", "evidence"],
+        "properties": {
+          "id": {"type": "string"},
+          "title": {"type": "string"},
+          "status": {"type": "string", "enum": ["open", "proposed", "agreed", "needs evidence", "needs user"]},
+          "resolution": {"type": "string"},
+          "objection": {"type": "string"},
+          "evidence": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

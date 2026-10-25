@@ -1,0 +1,11 @@
+Local review service proposal
+
+The service stores review results locally and provides a command to retrieve them.
+When a provider disconnects, retry the request automatically.
+Two agents agreeing is sufficient to mark an issue resolved.
+The user can pause a review and continue it later.
+
+Open questions:
+- How do we avoid replaying a turn whose outcome is unknown?
+- What evidence is needed before marking an issue resolved?
+- What should happen when a source document changes during review?

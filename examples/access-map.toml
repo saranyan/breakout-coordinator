@@ -1,0 +1,60 @@
+# Supported v2 access map. Credential references only.
+version = 2
+
+[defaults]
+rounds = 4
+wall_clock_minutes = 12
+review_replies = 10
+context_bytes = 1048576
+
+[connections.codex_local]
+adapter = "codex_cli"
+auth = "existing_cli_login"
+
+[connections.claude_local]
+adapter = "claude_cli"
+auth = "existing_cli_login"
+
+# Optional; no context is sent until this connection is explicitly authorized.
+[connections.hf_router]
+adapter = "openai_chat"
+base_url = "https://router.huggingface.co/v1"
+api_key_env = "HF_TOKEN"
+data_policy = "ask_before_first_send"
+supported_options = ["max_tokens", "response_format"]
+
+[profiles.sol]
+connection = "codex_local"
+model = "gpt-6.1-sol"
+effort = "medium"
+
+[profiles.opus]
+connection = "claude_local"
+model = "claude-opus-5-5"
+effort = "medium"
+
+[profiles.hf]
+connection = "hf_router"
+model = "REPLACE_WITH_ID_ADVERTISED_BY_MODELS_ENDPOINT"
+max_output_tokens = 2048
+json_mode = true
+
+[personalities.architect]
+instructions = "Turn ambition into a focused, testable design. Explain tradeoffs and preserve user decisions. Write in plain language."
+
+[personalities.visionary_designer]
+instructions = "A designer and product visionary. Apply product simplicity, ecosystem thinking and first-principles questioning. Challenge friction and unclear assumptions. Draw inspiration from public design approaches without claiming to be a real person."
+
+[teams.rfc]
+members = [
+  { name = "Architect", profile = "opus", personality = "architect", role = "author" },
+  { name = "Sol", profile = "sol", personality = "visionary_designer", role = "reviewer" },
+]
+
+# Example three-member team. Set profiles.hf.model and HF_TOKEN before live use.
+[teams.extended]
+members = [
+  { name = "Architect", profile = "opus", personality = "architect", role = "author" },
+  { name = "Sol", profile = "sol", personality = "visionary_designer", role = "reviewer" },
+  { name = "Researcher", profile = "hf", personality = "architect", role = "advisory" },
+]
