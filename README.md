@@ -39,6 +39,11 @@ It's tested with Claude Code and Codex, and any OpenAI-compatible API can join.
    accept it, and close the team when you're done. Until then, it waits without
    spending anything.
 
+Here's the same flow at the command line, the way the skill runs it, with pretend
+agents. The commands and their output are real.
+
+![A breakout launched from a saved team, its result in the mailbox, a question to one member, then accept and close](docs/images/breakout-demo.gif)
+
 ## Try it in two minutes
 
 The demo uses pretend agents, so it needs no accounts and makes no model calls.
