@@ -32,11 +32,23 @@ context packet, and Sol on `gpt-6.1-sol` as a native fork, both at medium effort
 - Every result went only to the origin and was acknowledged after reading. The
   team was then closed explicitly, after nine work turns and two review replies.
 
+**2026-10-28: the full loop from a Claude conversation.** The README demo GIF.
+Claude Code 2.1.312 launched the `rfc` recipe from `.breakout/config.toml`: the
+Architect on `claude-opus-5-5` as a native fork, and Sol on `gpt-6.1-sol`
+briefed with a context packet, both at medium effort.
+
+- With no explicit issues, both members scanned the README and the origin selected
+  all six of their issues.
+- The discussion finished within its two-round budget. The result reached the
+  Claude conversation through the hook at its next message and was acknowledged.
+- A question addressed only to Sol was answered without changing the artifact,
+  and the team was closed explicitly.
+
 ## Automated only
 
-84 tests pass, in about a second. Beyond the live paths above, they cover:
+85 tests pass, in about a second. Beyond the live paths above, they cover:
 
-- launching from Claude, and all four origin and team-vendor combinations;
+- all four origin and team-vendor combinations;
 - teams of three and four, advisory members, and an author other than the first
   member;
 - the review window: targeted and team questions, revisions, accept versus close,
@@ -55,7 +67,6 @@ evidence about any real API.
 
 ## Not verified
 
-- Launching from a Claude conversation, live.
 - API and Hugging Face members against real endpoints.
 - Teams larger than two, live.
 - Restart recovery against real providers.

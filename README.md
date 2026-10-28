@@ -13,7 +13,8 @@ them the context, so you don't have to.
 
 ![A breakout launched, its result returned, a follow-up question, then closed](docs/images/breakout-demo.gif)
 
-*The demo uses pretend agents. The commands are what the `/breakout` skill runs for you.*
+*A real breakout from a Claude Code conversation: an Architect (Claude) and Sol (Codex)
+review this README. The right pane is `breakout watch`. Waits are sped up.*
 
 ## Try it
 
@@ -39,8 +40,8 @@ Restart your session and ask for a breakout. See the [guide](docs/GUIDE.md).
 
 - Agents only discuss. They can't run commands or edit your files.
 - Answers show up at your next message, not instantly.
-- Tested live from Codex with Claude + Codex agents. Other paths are covered by
-  tests only; see [verification](docs/VERIFICATION.md).
+- Tested live from both Claude and Codex, with Claude + Codex agents. Other paths
+  are covered by tests only; see [verification](docs/VERIFICATION.md).
 - Next up: agents that build and test code, not just talk.
   See the [roadmap](ROADMAP.md).
 

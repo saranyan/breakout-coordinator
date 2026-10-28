@@ -25,6 +25,7 @@ JSON by default; `result` and `transcript` can write Markdown with `--output`.
 |---|---|
 | `launch --from-provider P --from-session ID --task T ...` | Start a 2–4 member team. Members come from `--agent JSON` (repeated) or `--config FILE --team NAME`. Context from `--context` or `--context-file`. |
 | `open --provider P --session ID` | List your open teams |
+| `watch [RUN] [--interval S]` | Follow a team live: turns, issue status and result delivery. Defaults to the most recent open team. |
 | `ask RUN 'TEXT' --to NAME\|team` | A question to one member or the whole team |
 | `revise RUN 'TEXT'` | Ask for a revision; reviewers approve the new version |
 | `feedback RUN 'TEXT'` | Record feedback without revising |

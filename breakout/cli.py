@@ -10,7 +10,7 @@ from . import __version__
 from .daemon import request, serve
 from .documents import snapshot
 from .providers import doctor
-from .render import result_markdown, transcript_markdown
+from .render import result_markdown, transcript_markdown, watch_lines
 from .store import home_path, uid
 
 
@@ -103,6 +103,9 @@ def parser():
             cmd.add_argument("--output", type=Path)
         if name == 'result':
             cmd.add_argument('--revision', type=int)
+    watch = sub.add_parser("watch", help="Follow a breakout live until it closes")
+    watch.add_argument("run_id", nargs="?", help="Defaults to the most recently active open breakout")
+    watch.add_argument("--interval", type=float, default=2)
     for name in ("mailbox", "ack", "open"):
         cmd = sub.add_parser(name)
         cmd.add_argument("--provider", choices=["codex", "claude"], required=True)
@@ -335,6 +338,23 @@ def main(argv=None):
             output = {k: run[k] for k in ("id", "status", "phase", "participants", "simulate")}
         elif args.command == "status":
             output = call("get", run_id=args.run_id)
+        elif args.command == "watch":
+            seen = set()
+            if not args.run_id:
+                active = [r for r in call("list") if r["status"] not in ("closed", "ended", "cancelled")]
+                if not active:
+                    raise ValueError("No open breakout to watch")
+                args.run_id = active[-1]["id"]
+            try:
+                while True:
+                    run = call("get", run_id=args.run_id)
+                    for line in watch_lines(run, seen):
+                        print(line, flush=True)
+                    if run["status"] in ("closed", "ended", "cancelled"):
+                        return
+                    time.sleep(args.interval)
+            except KeyboardInterrupt:
+                return
         elif args.command in ("pause", "resume", "end", "cancel", "steer", "decide", "select"):
             run = call("control", run_id=args.run_id, action=args.command, text=getattr(args, "text", None),
                        event_id=getattr(args, "event_id", None), issue_ids=getattr(args, "issue_ids", None))

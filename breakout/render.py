@@ -1,3 +1,4 @@
+import time
 from .documents import freshness
 
 
@@ -50,3 +51,45 @@ def transcript_markdown(run):
         if message["content"].get("proposal"):
             lines += ["### Proposed text", message["content"]["proposal"]]
     return "\n\n".join(lines) + "\n"
+
+
+def _clip(text, width=96):
+    text = " ".join(text.split())
+    end = text.find(". ") + 1
+    text = text[:end] if 0 < end <= width else text
+    return text if len(text) <= width else text[:width - 1] + "…"
+
+
+def watch_lines(run, seen):
+    """Lines for events in `run` not yet in `seen`; mutates `seen`."""
+    stamp = lambda t: time.strftime("%H:%M:%S", time.localtime(t))
+    name = lambda i: run["participants"][i].get("name", run["participants"][i]["provider"])
+    lines = []
+    if "header" not in seen:
+        seen.add("header")
+        lines += [f"Breakout {run['id']}", "Task: " + _clip(run["task"])]
+        lines += [f"  {p.get('name', p['provider'])} · {p['provider']} {p.get('model') or ''} · {p.get('role', 'member')}"
+                  for p in run["participants"]]
+        lines.append("")
+    state = ("status", run["status"], run["phase"])
+    if state not in seen:
+        seen.add(state)
+        lines.append(f"{stamp(time.time())}  ● {run['status']}")
+    for attempt in run.get("attempts", []):
+        if ("attempt", attempt["id"]) not in seen and attempt["status"] == "running":
+            seen.add(("attempt", attempt["id"]))
+            lines.append(f"{stamp(attempt['created'])}  … {name(attempt['participant'])} is thinking")
+    for message in run["messages"]:
+        if ("message", message["id"]) in seen:
+            continue
+        seen.add(("message", message["id"]))
+        author = "You" if message["author"] == "user" else message.get("name", message["author"])
+        lines.append(f"{stamp(message['created'])}  {author}: {_clip(message['content']['message'])}")
+        lines += [f"            {i['id']} {i['status']}" for i in message["content"].get("issues", [])]
+    for delivery in run.get("deliveries", []):
+        key = ("delivery", delivery["revision"], delivery["status"])
+        if key not in seen:
+            seen.add(key)
+            verb = "queued for" if delivery["status"] == "queued" else "read by"
+            lines.append(f"{stamp(time.time())}  ↩ result r{delivery['revision']} {verb} the {delivery['provider']} session")
+    return lines

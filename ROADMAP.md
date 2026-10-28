@@ -7,7 +7,8 @@ make that dependable, and where it goes next: rooms that build.
 ## Make today's breakouts dependable
 
 - [ ] **Launch from Claude, live.** Run the full loop (launch, question, revision,
-      close) from a Claude Code conversation, as was done from Codex.
+      close) from a Claude Code conversation, as was done from Codex. Launch,
+      question and close have run live; a revision hasn't yet.
 - [ ] **Bigger teams, live.** Run a three-member team with an advisory member.
 - [ ] **API members, live.** Run an OpenAI-compatible member against a real
       endpoint, such as the Hugging Face router.

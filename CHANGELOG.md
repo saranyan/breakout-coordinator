@@ -9,6 +9,9 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - `breakout --version`.
+- `breakout watch`, a live feed of a team's turns, issue status and result
+  delivery.
+- A README demo recorded from a real breakout launched in Claude Code.
 - License, contributing guide, security policy and code of conduct.
 - A rewritten README, a guide, a reference, a verification page, a roadmap, and
   the Breakout Rooms design proposal. Tests run on GitHub Actions.
