@@ -1,0 +1,20 @@
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "breakout-coordinator",
+  "description": "Start a small team of AI agents from the Claude Code or Codex conversation you're in. They discuss a question, design or document, and the reviewed answer comes back to that same conversation. Agents can be Claude, Codex or OpenAI-compatible API models, and they only discuss: they can't run commands or edit your files.",
+  "codeRepository": "https://github.com/saranyan/breakout-coordinator",
+  "programmingLanguage": {
+    "@type": "ComputerLanguage",
+    "name": "Python",
+    "url": "https://www.python.org"
+  },
+  "runtimePlatform": "Python 3.11+ on macOS",
+  "version": "0.2.0",
+  "license": "https://opensource.org/licenses/MIT",
+  "author": {
+    "@type": "Person",
+    "name": "Saranyan Vigraham",
+    "url": "https://github.com/saranyan"
+  }
+}

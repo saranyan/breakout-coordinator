@@ -1,0 +1,29 @@
+# breakout-coordinator
+
+> Start a small team of AI agents from the Claude Code or Codex conversation you're in. They discuss a question, design or document over a few bounded rounds, and the reviewed answer comes back to that same conversation, where you can ask members follow-up questions, request a revision, accept it or close the team. Agents only discuss: they can't run commands or edit your files.
+
+A local Python CLI (`breakout`) with a background daemon, a `/breakout` skill and session hooks for Claude Code and Codex. Members can be Claude, Codex or OpenAI-compatible API models. API members are covered by tests with mocked transport only. Python 3.11+, macOS, no dependencies, MIT license. Full documentation in one file: [llms-full.txt](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/llms-full.txt).
+
+## Docs
+
+- [README](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/README.md): What it does, the demo, how to try it with pretend agents, and how to install it.
+- [Guide](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/docs/GUIDE.md): Setup, launching a first breakout, saved teams, reviewing a result, personalities and learnings, API members and documents.
+- [Verification](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/docs/VERIFICATION.md): What has run live against real Claude Code and Codex, and what only the automated tests cover.
+
+## Examples
+
+- [Sample document](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/examples/review.txt): A short proposal used by `python3 -m breakout demo --document examples/review.txt`, a simulated review with no accounts.
+- [Access map](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/examples/access-map.toml): A `.breakout/config.toml` with connections, profiles, personalities and named teams.
+- [Learning evaluation](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/examples/learning-evaluation.json): The evidence format `breakout library evaluate` checks before a learned change can be approved.
+
+## API
+
+- [CLI reference](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/docs/REFERENCE.md): Every command, configuration setting, hook and delivery rule, recovery step and guarantee.
+- [/breakout skill](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/skills/breakout/SKILL.md): The instructions Claude Code and Codex follow to launch a team, hand off context and relay results.
+- [Turn protocol](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/breakout/protocol.py): Validation for the JSON envelope each member returns. A `breakout reconcile` receipt wraps one envelope.
+
+## Optional
+
+- [Roadmap](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/ROADMAP.md): What's next, including rooms that build and test code.
+- [Breakout Rooms design proposal](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/docs/design/BREAKOUT-ROOMS.md): A proposal, not implemented yet.
+- [Changelog](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/CHANGELOG.md): Changes by release.

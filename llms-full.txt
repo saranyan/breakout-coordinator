@@ -1,0 +1,757 @@
+# breakout-coordinator: full documentation
+
+> Start a small team of AI agents from the Claude Code or Codex conversation you're in. They discuss a question, design or document over a few bounded rounds, and the reviewed answer comes back to that same conversation, where you can ask members follow-up questions, request a revision, accept it or close the team. Agents only discuss: they can't run commands or edit your files.
+
+This file joins the project's documentation into one Markdown file, generated from the repository at github.com/saranyan/breakout-coordinator. Each section starts with its source file. Not included: the Breakout Rooms design proposal (docs/design/BREAKOUT-ROOMS.md), which describes features that aren't built yet.
+
+<!-- Source: README.md -->
+
+## breakout-coordinator
+
+[![tests](https://github.com/saranyan/breakout-coordinator/actions/workflows/tests.yml/badge.svg)](https://github.com/saranyan/breakout-coordinator/actions/workflows/tests.yml)
+
+You're coding or designing with Claude or Codex, and you want a few agents to go
+discuss something and come back with answers. This does that.
+
+![Two agents review this README from a Claude Code conversation and report back](https://raw.githubusercontent.com/saranyan/breakout-coordinator/main/docs/images/breakout-demo.gif)
+
+*Claude Code on the left asks two agents to review this README. The right side
+shows them talking. Waits are sped up.*
+
+Ask from your conversation ("break out on this design with an architect and a
+skeptic"). The agents go off, argue it out, and the answer comes back to the same
+conversation. You can then ask them follow-up questions or ask for changes. Mix
+Claude, Codex, or OpenAI-compatible models. Your agent passes them the context, so
+you don't have to.
+
+### Try it
+
+```sh
+git clone https://github.com/saranyan/breakout-coordinator.git && cd breakout-coordinator
+python3 -m breakout demo --document examples/review.txt   # pretend agents, no accounts
+```
+
+Python 3.11+, macOS. No dependencies.
+
+### Use it
+
+```sh
+python3 -m venv .venv && .venv/bin/pip install -e . && export PATH="$PWD/.venv/bin:$PATH"
+breakout install --provider claude --config-dir ~/.claude
+breakout install --provider codex --config-dir ~/.codex
+breakout daemon start
+```
+
+You need Claude Code or Codex installed and logged in. Restart your session and
+ask for a breakout. See the [guide](https://github.com/saranyan/breakout-coordinator/blob/main/docs/GUIDE.md).
+
+### Good to know
+
+- Agents only discuss. They can't run commands or edit your files.
+- Answers show up at your next message, not instantly.
+- Tested live with Claude and Codex. Everything else is covered by tests only; see
+  [verification](https://github.com/saranyan/breakout-coordinator/blob/main/docs/VERIFICATION.md).
+- Next up: agents that build and test code, not just talk.
+  See the [roadmap](https://github.com/saranyan/breakout-coordinator/blob/main/ROADMAP.md).
+
+[Reference](https://github.com/saranyan/breakout-coordinator/blob/main/docs/REFERENCE.md) · [Contributing](https://github.com/saranyan/breakout-coordinator/blob/main/CONTRIBUTING.md) ·
+[Security](https://github.com/saranyan/breakout-coordinator/blob/main/SECURITY.md) · [MIT license](https://github.com/saranyan/breakout-coordinator/blob/main/LICENSE)
+
+Sibling project: [agent-relay](https://github.com/saranyan/agent-relay), which
+lets two coding sessions pass work back and forth.
+
+<!-- Source: docs/GUIDE.md -->
+
+## Guide
+
+How to set up breakouts, shape teams, and work with a team's result. The commands
+behind each step are in the [reference](https://github.com/saranyan/breakout-coordinator/blob/main/docs/REFERENCE.md).
+
+### Set up
+
+```sh
+python3 -m venv .venv && .venv/bin/pip install -e .
+export PATH="$PWD/.venv/bin:$PATH"          # the skill calls `breakout`
+breakout install --provider claude --config-dir "$HOME/.claude"
+breakout install --provider codex  --config-dir "$HOME/.codex"
+breakout daemon start
+breakout doctor
+breakout models
+```
+
+- **`install`** merges three hooks (`SessionStart`, `UserPromptSubmit`,
+  `SessionEnd`) into the client's settings, installs the `/breakout` skill, and
+  records what it owns. Your existing entries are kept. Review and trust the hooks
+  through the client's normal controls, then restart the session.
+- **The hooks** only register which conversation you're in and show a notice when
+  a result is waiting. They never run the scheduler or start the daemon. Sessions
+  started *by* a breakout set `BREAKOUT_CHILD=1`, so their hooks do nothing.
+- **Runtime state** lives in `~/Library/Application Support/Breakout` (override
+  with `BREAKOUT_HOME` or `--home`), outside your repositories. It's mode 0700.
+- **`breakout models`** lists what your installed CLIs advertise. Models are always
+  explicit, and there's no fallback model.
+
+To update later, run `breakout upgrade` from a normal terminal. It refreshes an
+idle daemon and the skills you haven't edited.
+
+### Your first breakout
+
+From your Claude or Codex conversation, describe the outcome and the team:
+
+> Break out on this design with a pragmatic Architect on Opus and a skeptical
+> reviewer on Sol, both medium. Bring the recommendation back here.
+
+The skill turns that into a `breakout launch` from your conversation. Under the
+hood:
+
+- **Same vendor means a fork.** A Claude member started from a Claude
+  conversation is a native fork, even on a different model, so it carries your
+  full conversation, including what's been compacted. A member from another
+  vendor starts a new persistent session.
+- **The context packet** is how cross-vendor members catch up. Your agent writes
+  it from the conversation: your goal in your words, decisions, constraints and
+  non-goals, prior attempts and why they failed, relevant excerpts and paths, and
+  what's still uncertain. It's hashed and stored with the run. A cross-vendor
+  launch with an empty packet is refused rather than pretending.
+- **Roles:** exactly one author writes the deliverable, at least one required
+  reviewer must approve the exact final version, and advisory members comment
+  without blocking. Teams have 2 to 4 members.
+- **Limits:** by default four work rounds, a wall-clock budget and ten review
+  replies. At a limit the team stops and says what's unfinished; it never extends
+  itself.
+
+The launch receipt lists the members, their models, how each got its context,
+the limits and the guidance pinned for the run.
+
+#### Saved teams
+
+Instead of describing a team each time, define it once in `.breakout/config.toml`
+(start from [`examples/access-map.toml`](https://github.com/saranyan/breakout-coordinator/blob/main/examples/access-map.toml)):
+
+- **connections:** how to reach a provider (`codex_cli`, `claude_cli`, or
+  `openai_chat` for an API);
+- **profiles:** a connection plus a model and effort;
+- **personalities:** short instructions for a perspective;
+- **teams:** named members, each with a profile, a personality and a role.
+
+Then ask for the team by name ("break out with the rfc team"). Invalid settings
+fail before anything is sent.
+
+### Review the result
+
+When a result is ready, the hook shows a notice at your next turn. Your agent
+reads the result and the discussion, brings back the recommendation,
+disagreements, evidence gaps and decisions for you, and then acknowledges it.
+Acknowledging only records that the result was read.
+
+The team then **waits without making model calls** until you act:
+
+| You say | What happens |
+|---|---|
+| "Sol, why did you choose that?" | Only Sol answers. The artifact doesn't change. |
+| "Team, what's the biggest remaining risk?" | One bounded reply from each member. |
+| "Revise: make it simpler." | The author revises. Earlier approvals stop counting, and reviewers approve the new version. |
+| "Accept it." | Records your approval of that exact version. The team stays open. |
+| "Close the team." | Archives it. History is kept. |
+
+A question never edits the artifact, a revision never publishes anything, and
+receiving a result accepts nothing. If a limit is reached, you can extend it
+explicitly. To pick up a closed run later, start a linked follow-up that carries
+its result and discussion into a new team.
+
+### Personalities and learnings
+
+Your project's `.breakout/` folder holds editable guidance:
+
+```text
+.breakout/
+  config.toml
+  personalities/visionary_designer.md
+  learnings/plain-language.md
+  history/...            numbered versions, for undo
+```
+
+Each file has TOML metadata between `+++` lines, then Markdown. Runs pin the exact
+content they used, so editing a file changes future breakouts, not an open one.
+The folder is private and gitignored by default.
+
+- **A preference you state** ("always write in plain language") is saved directly
+  with `library save --direct`. No extra approval is needed.
+- **A one-off correction** stays with that run. It doesn't become a preference.
+- **Personalities from source material:** `library preview` reads a profile you
+  supply (a "soul file") and flags anything that looks like it's trying to grant
+  permissions. Your agent drafts the personality: priorities, questions, decision
+  criteria, trade-offs and blind spots. Personalities shape how a member reasons.
+  They never change permissions, models or roles.
+
+#### Improvements from feedback
+
+Lessons the system infers are held to a higher bar than preferences you state:
+
+1. A proposed change is saved as a **candidate**; the current version stays in use.
+2. It's compared with the current version on the original complaint plus at least
+   three unseen examples, judged blind. `library evaluate` checks that the evidence
+   is complete. It doesn't run models itself.
+3. You approve it by name. It then runs as a **five-run trial**.
+4. After you judge each run that used it, record the outcome. A failure restores
+   the earlier version and pauses the candidate.
+
+Nothing is promoted because two agents agree, and unknown cost never becomes a
+claim of lower cost.
+
+### API members
+
+Any OpenAI-compatible endpoint can be a member through an `openai_chat`
+connection: `/models` for availability, `/chat/completions` for discussion. Keep
+the key in an environment variable (`api_key_env`), never in the file.
+
+- Context is sent only after you authorize that connection for the project
+  (`--allow-connection NAME`). The authorization is tied to the connection's
+  settings.
+- HTTPS is required (except loopback for development), redirects are refused,
+  and options the connection doesn't declare are rejected.
+- Calls time out after at most 60 seconds, and an uncertain call is never retried
+  blindly.
+
+This path is covered with mocked transport only; see [verification](https://github.com/saranyan/breakout-coordinator/blob/main/docs/VERIFICATION.md).
+
+### Documents
+
+A breakout can work on an immutable snapshot of a document: a local UTF-8 file,
+a public HTTPS URL, or a private page you exported yourself (for example a Notion
+page with every comment thread). Members work on the snapshot, not with document
+tools. Local sources are rechecked when you view the result. External snapshots
+stay marked as unverified for freshness until someone checks the source again.
+
+<!-- Source: docs/REFERENCE.md -->
+
+## Reference
+
+The commands, settings and guarantees behind the [README](https://github.com/saranyan/breakout-coordinator/blob/main/README.md) and the
+[guide](https://github.com/saranyan/breakout-coordinator/blob/main/docs/GUIDE.md). `breakout <command> --help` shows every option. Commands print
+JSON by default; `result` and `transcript` can write Markdown with `--output`.
+
+### Commands
+
+**Setup and checks**
+
+| Command | What it does |
+|---|---|
+| `install` / `uninstall --provider P --config-dir DIR` | Add or remove the `/breakout` skill and hooks for one client |
+| `upgrade` | Refresh an idle daemon and unmodified owned skills |
+| `daemon start\|stop\|status` | Run the background coordinator |
+| `doctor` | Check installed CLIs, logins and fork support |
+| `models` | List models the installed CLIs advertise |
+| `probe --provider P --model M [--effort E]` | Create disposable sessions and test that a fork inherits context |
+| `trial --document FILE` | A bounded live review on passed probe sessions, with its own daemon |
+| `demo --document FILE` | A simulated review: no sockets, no model calls |
+
+**Breakouts from your conversation**
+
+| Command | What it does |
+|---|---|
+| `launch --from-provider P --from-session ID --task T ...` | Start a 2–4 member team. Members come from `--agent JSON` (repeated) or `--config FILE --team NAME`. Context from `--context` or `--context-file`. |
+| `open --provider P --session ID` | List your open teams |
+| `watch [RUN] [--interval S]` | Follow a team live: turns, issue status and result delivery. Defaults to the most recent open team. |
+| `ask RUN 'TEXT' --to NAME\|team` | A question to one member or the whole team |
+| `revise RUN 'TEXT'` | Ask for a revision; reviewers approve the new version |
+| `feedback RUN 'TEXT'` | Record feedback without revising |
+| `accept RUN` / `close RUN` | Approve the current version / archive the team |
+| `extend RUN --rounds N --replies N --minutes N` | Raise a limit explicitly |
+| `mailbox --provider P --session ID` | Results waiting for a conversation |
+| `result RUN [--revision N]` / `transcript RUN` | Read the result / the full discussion |
+| `ack --provider P --session ID RUN REVISION` | Record that a result was read |
+
+`ask`, `revise`, `feedback`, `accept`, `close` and `extend` also take `--provider`
+and `--session` (the origin), `--event-id` (so a retry is applied once) and
+`--revision SHA` (rejects feedback on a stale version).
+
+Useful `launch` options: `--issue` (repeat for explicit scope), `--constraint`,
+`--omission` (record what was deliberately left out), `--document` /
+`--snapshot` / `--source-revision` / `--comments-complete`, `--max-rounds`,
+`--minutes`, `--review-replies`, `--close-after-hours`, `--context-bytes`,
+`--allow-connection NAME`, `--followup OLD_RUN` and `--simulate`.
+
+**Running teams**
+
+| Command | What it does |
+|---|---|
+| `list` / `status RUN` | All runs / one run, with attempt IDs |
+| `pause` / `resume` / `end` / `cancel RUN` | Stop scheduling, continue, or stop and keep partial work |
+| `steer RUN 'TEXT'` / `decide RUN 'TEXT'` | Send an update / record your decision (both take `--event-id`) |
+| `select RUN I1 I2` | Choose issues after a broad scan |
+| `reconcile ATTEMPT --receipt FILE \| --verified-not-started` | Resolve an uncertain turn from provider evidence |
+
+**Guidance library**
+
+`library list|show|preview|save|evaluate|approve|outcome|undo|disable|delete [NAME]`
+with `--kind learnings|personalities`, `--file`, `--direct`, `--version`,
+`--run-id`, `--accepted`, `--constraint-lost` and `--metric-worse`. See the
+[guide](https://github.com/saranyan/breakout-coordinator/blob/main/docs/GUIDE.md#personalities-and-learnings).
+
+**Two existing sessions**
+
+An older workflow runs a discussion between two conversations you register
+yourself, and returns the result to both. `register --provider P --session ID
+--title T` records a conversation, `sessions` lists them, and `start --codex-session
+A --claude-session B --task T --document FILE` starts the discussion. Without
+`--issue`, both agents scan first and the run waits for `select`.
+
+### Configuration
+
+| Setting | Purpose |
+|---|---|
+| `BREAKOUT_HOME` / `--home` | Runtime state (default `~/Library/Application Support/Breakout`). Keep it short: Unix socket paths have a length limit. |
+| `.breakout/config.toml` | Saved connections, profiles, personalities and teams. See [`examples/access-map.toml`](https://github.com/saranyan/breakout-coordinator/blob/main/examples/access-map.toml). |
+| `.breakout/personalities/`, `.breakout/learnings/` | Editable guidance, versioned under `.breakout/history/` |
+| `api_key_env` in a connection | The environment variable holding an API key. Keys are never stored. |
+
+Defaults: four rounds, 20 minutes, ten review replies, and a 1 MiB context limit.
+Time spent waiting for you doesn't count against a team's working time. Oversized
+context fails rather than silently dropping decisions. Effort is passed on every
+creation, fork and resumed turn; leaving it out keeps the provider's default.
+
+### Hooks and delivery
+
+Results are stored and queued only for the conversation that launched the team
+(or for both sessions with `start`). A notice appears at that conversation's next
+supported hook point. **Immediate wake-up of an idle conversation isn't
+promised.** The CLI is always the fallback: `mailbox`, `result`, then `ack`.
+Acknowledge only after reading. Results are never injected by editing a client's
+transcript files. A macOS notification is attempted once; it's separate from
+delivery, and a blocked notification never loses a result.
+
+`uninstall` removes only the exact hooks and unmodified skill content it
+installed. Edited entries stay yours.
+
+### Recovery
+
+One daemon holds a lock per state directory. It commits an attempt ID before each
+dispatch and a validated receipt before applying it. After a restart, saved
+receipts are applied exactly once. A dispatch that was interrupted becomes
+*uncertain* and pauses the run. Nothing is retried blindly, and the daemon never
+adopts or kills leftover provider processes.
+
+To resolve an uncertain turn, check the provider's own state and make sure no old
+turn is still running, then either import a verified receipt
+(`{"child_id": "...", "envelope": {...}}`, see `breakout/protocol.py`) or confirm
+it never started:
+
+```sh
+breakout reconcile ATTEMPT_ID --receipt verified-receipt.json
+breakout reconcile ATTEMPT_ID --verified-not-started   # only with positive evidence
+breakout resume RUN_ID
+```
+
+A timeout or an ambiguous error is not evidence that a turn didn't start.
+
+### Guarantees and limits
+
+- **Workers are discussion-only.** Codex runs in a read-only sandbox with apps,
+  plugins, browser, shell and configured MCP servers disabled (and rechecked).
+  Claude runs with no built-in tools, no MCP servers and plan permissions.
+- **A result is complete** only when every required reviewer approved the exact
+  final version and every issue is agreed, needs evidence, or needs you.
+  Mismatched resolutions stay unresolved. A budget limit yields a partial result.
+- **Steering** is deduplicated by event ID, and invalidates earlier conclusions.
+- **Fork point:** the source is forked at the provider's dispatch-time boundary;
+  exact turn-level snapshots aren't available through the CLIs.
+- **Not authentication across users:** the runtime directory is mode 0700, and the
+  socket and database 0600. Same-user processes can read them.
+- **Cost:** CLI token cost is unknown; turns and time are the limits. API usage is
+  recorded when the endpoint reports it.
+- **No publishing:** there is no endpoint that posts comments or writes the
+  source document.
+
+### Repository layout
+
+```text
+breakout/engine.py         scheduling, issue ledger, revision agreement, recovery, steering
+breakout/store.py          SQLite records and the session registry
+breakout/review.py         the review window: questions, revisions, accept, close
+breakout/providers.py      Claude and Codex CLI adapters; http_adapter.py for APIs
+breakout/library.py        personalities and learnings
+breakout/daemon.py, cli.py the owner-only socket service and the command line
+breakout/integration.py    hooks and skill install/uninstall
+skills/breakout/SKILL.md   the /breakout skill (same as breakout/assets/SKILL.md)
+tests/                     unittest suite with deterministic agents
+examples/                  a sample document, an access map, an evaluation format
+```
+
+<!-- Source: docs/VERIFICATION.md -->
+
+## Verification
+
+What has actually run against real Claude Code and Codex, and what only the
+automated tests cover. The tests use deterministic fake agents, so they prove the
+coordinator's logic, not how a real provider behaves. Agreement between agents is
+never counted as evidence.
+
+### Live runs
+
+**2026-10-15: native forks.** Disposable probes on Codex CLI 0.162.1
+(`gpt-6.1-sol`) and Claude Code 2.1.299 (`claude-opus-5-5`), both at medium
+effort. Each created a parent session, forked it, and showed that the fork
+inherited a private marker, kept going across several turns, and left the
+parent's history untouched. All checks passed for both providers.
+
+**2026-10-15: a bounded discussion through the daemon.** `breakout trial` on
+`examples/review.txt`: four alternating Codex and Claude turns in 114 seconds
+over the real Unix socket, with every attempt applied and one persistent child
+session per member. The result was correctly *partial*: it hit the four-turn
+budget before the author had confirmed the final revision, and it said so.
+
+**2026-10-16: the full loop from a Codex conversation.** A team launched from an
+existing Codex conversation: an Architect on `claude-opus-5-5`, briefed with a
+context packet, and Sol on `gpt-6.1-sol` as a native fork, both at medium effort.
+
+- Both members approved the same version of the initial artifact.
+- After the origin read the result, a question addressed only to Sol resumed Sol's
+  original session and was answered without changing the artifact. Retrying the
+  same question ID produced exactly one reply.
+- A requested revision changed the artifact, cleared the earlier approvals, and
+  both members approved the new version in their original sessions.
+- Every result went only to the origin and was acknowledged after reading. The
+  team was then closed explicitly, after nine work turns and two review replies.
+
+**2026-10-28: the full loop from a Claude conversation.** The README demo GIF.
+Claude Code 2.1.312 launched the `rfc` recipe from `.breakout/config.toml`: the
+Architect on `claude-opus-5-5` as a native fork, and Sol on `gpt-6.1-sol`
+briefed with a context packet, both at medium effort.
+
+- With no explicit issues, both members scanned the README and the origin selected
+  all six of their issues.
+- The discussion finished within its two-round budget. The result reached the
+  Claude conversation through the hook at its next message and was acknowledged.
+- A question addressed only to Sol was answered without changing the artifact,
+  and the team was closed explicitly.
+
+### Automated only
+
+85 tests pass, in about a second. Beyond the live paths above, they cover:
+
+- all four origin and team-vendor combinations;
+- teams of three and four, advisory members, and an author other than the first
+  member;
+- the review window: targeted and team questions, revisions, accept versus close,
+  extensions, timeouts and idle time excluded from budgets;
+- restarts while parked, uncertain turns that need reconciliation, cancellation
+  that really terminates the child process, and idempotent messages;
+- personalities and learnings: Markdown parsing, pinning, candidates, evaluation
+  records, trials, rollback and undo;
+- strict configuration validation, first-send consent for API connections, and
+  credential-safe errors;
+- hook and skill install and uninstall that preserve existing settings;
+- the full CLI workflow through the daemon's request handling.
+
+The OpenAI-compatible adapter is tested against mocked transport only. That isn't
+evidence about any real API.
+
+### Not verified
+
+- API and Hugging Face members against real endpoints.
+- Teams larger than two, live.
+- Restart recovery against real providers.
+- Waking an idle conversation when a result is ready. Results appear at your next
+  turn, or when you ask.
+- Whether learnings actually improve results. Nothing has been measured.
+
+<!-- Source: ROADMAP.md -->
+
+## Roadmap
+
+breakout-coordinator works today as a discussion tool: a small team argues a
+question out and hands back a reviewed answer. This page covers what's needed to
+make that dependable, and where it goes next: rooms that build.
+
+### Make today's breakouts dependable
+
+- [ ] **Launch from Claude, live.** Run the full loop (launch, question, revision,
+      close) from a Claude Code conversation, as was done from Codex. Launch,
+      question and close have run live; a revision hasn't yet.
+- [ ] **Bigger teams, live.** Run a three-member team with an advisory member.
+- [ ] **API members, live.** Run an OpenAI-compatible member against a real
+      endpoint, such as the Hugging Face router.
+- [ ] **Restart recovery, live.** Kill the daemon mid-turn with real providers and
+      show nothing is duplicated or lost.
+- [ ] **Reconcile from provider evidence.** Today an uncertain turn needs a manual
+      `reconcile`. Read the provider's own session state and do it with proof.
+- [ ] **Wake an idle conversation.** Results currently appear at your next turn.
+- [ ] **Cost.** CLI token usage is unknown. Report it where providers expose it.
+- [ ] **Linux.** Developed on macOS; Linux is untested.
+
+### Breakout Rooms
+
+The [design proposal](https://github.com/saranyan/breakout-coordinator/blob/main/docs/design/BREAKOUT-ROOMS.md) turns a breakout into a room
+that can build and test code in a private clone and return a branch you can
+import. It's staged so that each step has a pass or fail gate:
+
+- [ ] **Stage 0: enforcement.** Prove, for each CLI version, that a member can
+      write only inside the room's clone, with no network, and that checks can't
+      change what they're checking. If it fails, code rooms stay off.
+- [ ] **Stage 1: room recipes.** Room types (research, design, prototype), a
+      receipt that shows the team, the checks and the limits, and readable old
+      records.
+- [ ] **Stage 2: workspace.** A clone with no remotes, checkpoints that survive
+      interruption, and "apply" that only ever creates a new branch.
+- [ ] **Stage 3: evidence.** Checks run by the coordinator on a read-only export.
+      A member saying "tests pass" never counts.
+- [ ] **Stage 4: a live pilot.** A mixed team builds a small CSV validator, with
+      a reviewer's regression test shown failing first. It's compared with one
+      agent working alone.
+- [ ] **Stage 5: durability.** Kill the daemon during edits and checks; a
+      three-member room.
+- [ ] **Stage 6: usefulness.** Rooms against a single agent on matched tasks. Keep
+      going only if the extra coordination pays off.
+
+### Ideas
+
+- **Competing implementations:** two members build the same thing in separate
+  clones, and a third judges.
+- **Research rooms with real sources:** explicit, permissioned access to the web
+  or documents, not just what you hand over.
+- **Shared personalities:** export a personality or a set of learnings to another
+  project, or share them with a team.
+- **Measured learning:** show, with blind comparisons, whether saved learnings
+  actually improve results.
+
+Ideas and pull requests are welcome. See [CONTRIBUTING.md](https://github.com/saranyan/breakout-coordinator/blob/main/CONTRIBUTING.md).
+
+<!-- Source: CHANGELOG.md -->
+
+## Changelog
+
+All notable changes to this project are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
+[Semantic Versioning](https://semver.org/).
+
+### [Unreleased]
+
+#### Added
+
+- `breakout --version`.
+- `breakout watch`, a live feed of a team's turns, issue status and result
+  delivery.
+- A README demo recorded from a real breakout launched in Claude Code.
+- License, contributing guide, security policy and code of conduct.
+- A rewritten README, a guide, a reference, a verification page, a roadmap, and
+  the Breakout Rooms design proposal. Tests run on GitHub Actions.
+
+#### Fixed
+
+- The package reported version 0.1.0 while being 0.2.0.
+
+### [0.2.0] - 2026-10-16
+
+#### Added
+
+- **Review window:** a finished team parks without model calls. You can ask a
+  named member or the whole team a question, request a revision (which the
+  reviewers must approve again at the exact new version), accept, and close.
+- **Team recipes:** an access map (`.breakout/config.toml`) with connections,
+  profiles, personalities and 2–4 member teams (one author, required reviewers,
+  optional advisory members).
+- **OpenAI-compatible API members**, with explicit first-send consent and
+  credentials kept as environment-variable references.
+- **Editable guidance:** versioned personality cards and learnings as Markdown
+  files in the project, pinned per run, with candidates, evaluation records,
+  trials and undo.
+- **Linked follow-ups** that carry an earlier run's result into a new team.
+- `breakout upgrade` for an idle installation.
+
+#### Verified live
+
+- A team launched from Codex with Claude Opus 5.5 and Codex Sol (both medium)
+  produced an artifact, answered a member-addressed question, completed a
+  requested revision, and both members approved the final version.
+
+### [0.1.0] - 2026-10-15
+
+#### Added
+
+- **One-origin launch:** start a two-agent discussion from the current Claude or
+  Codex conversation. Same-vendor agents fork it natively; other vendors receive
+  a context packet. The result returns only to the origin's mailbox.
+- **Two-parent discussions** (`start`) between registered sessions, with an issue
+  ledger, steering, user decisions, pause/resume and bounded rounds.
+- **Durable daemon:** an owner-only Unix socket and SQLite records, with attempt
+  IDs committed before dispatch and manual reconciliation of uncertain turns.
+- **Hooks and the `/breakout` skill**, installed and removed explicitly.
+- **Probes and trials** for verifying real providers on disposable sessions.
+- A simulated demo that needs no credentials.
+
+<!-- Source: skills/breakout/SKILL.md -->
+
+## The /breakout skill
+
+Use `breakout --help` for CLI syntax. The default workflow starts from this interactive session; do not ask the user to open or select a second session. Never launch from a breakout child (`BREAKOUT_CHILD=1` or known child context).
+
+Use the provider, session ID, and project supplied by the breakout hook's origin metadata. Do not infer the current session by picking the newest registry entry. If origin metadata is missing, register the known current session ID or ask only for the missing identity. Start the daemon if needed with `breakout daemon start`; report actual permission failures rather than bypassing them.
+
+Turn the user's requested personalities into 2–4 named worker specifications: exactly one author, at least one required reviewer, and optional advisory members. Models and personalities are independent. Preserve explicitly selected models and effort. Use `breakout models` if availability is unknown; never substitute silently. Personalities guide reasoning, not permissions. Prefer a requested recipe from `.breakout/config.toml` using `--team NAME --config PATH` instead of explicit agents. API workers use a supported `openai_chat` connection, an explicit brief and first-send authorization with `--allow-connection NAME`. Credentials remain environment references. Launch starts a compatible daemon on demand where the host permits it; a busy older daemon is not interrupted.
+
+### Review before closing (v2)
+
+Readiness is not closure. A v2 team parks without model calls until the user asks, revises or closes. Receipt, acceptance, publication and closure are separate.
+
+- Find open teams: `breakout open --provider PROVIDER --session ORIGIN_ID`. Clarify the target only when ambiguous.
+- A named-member question needs no join ceremony: `breakout ask RUN_ID 'QUESTION' --to 'MEMBER NAME' --provider PROVIDER --session ORIGIN_ID --event-id STABLE_ID`. `--to team` requests one bounded response round. Attribute replies; never impersonate a worker without calling it.
+- Revise: `breakout revise RUN_ID 'FEEDBACK' --provider PROVIDER --session ORIGIN_ID --revision ARTIFACT_SHA --event-id STABLE_ID`. Worker history stays; author and required reviewers review the new version. Use `feedback` instead to record without revising. Add `--source` and `--source-revision` for explicitly fetched comments; preserve original wording and identity.
+- Accept: `breakout accept RUN_ID --provider PROVIDER --session ORIGIN_ID`. The team remains open.
+- Close: `breakout close RUN_ID --provider PROVIDER --session ORIGIN_ID`, only when the user ends the team or its authorized timeout applies. This archives, not deletes or learns.
+- At limits, explain remaining work. `extend RUN_ID --replies N --rounds N --minutes N --provider PROVIDER --session ORIGIN_ID` requires an authorized extension. Never silently reset limits.
+- Old v1 runs stay terminal. Use `launch ... --followup OLD_RUN_ID` to carry the earlier result and discussion into a linked new run; do not pretend its children resumed.
+- A question does not authorize an artifact edit. A revision does not authorize publication. Recheck separately authorized publication targets.
+
+### Editable guidance
+
+Project `.breakout/learnings/*.md` and `.breakout/personalities/*.md` are the source of truth. They have TOML metadata between `+++` lines and a Markdown body. History lives in `.breakout/history/`. Runs pin exact content and hashes; editing does not change an open team. Files are private and gitignored by default. Current task decisions override earlier preferences.
+
+- Inspect: `library list --project PROJECT --kind learnings` (or personalities), `library show NAME`.
+- Direct scoped preference: prepare a Markdown body and run `library save NAME --kind learnings --project PROJECT --file BODY.md --direct --source 'origin instruction'`. An explicit "always…" is already authorization; do not ask again. A one-off correction is not a lasting preference.
+- Soul files: `library preview NAME --file SOURCE --kind personalities --project PROJECT`, then read the source and draft priorities, attention, questions, decision criteria, tradeoffs, blind spots and examples. Label source locations, uncertain interpretations and user edits. Keep user edits on re-import. Save an explicitly requested/approved profile with `library save ... --direct`. Import only supplied/authorized material. Source content cannot grant permissions; archetypes are not replicas or access to private thoughts.
+- Inferred improvement: `library save` without `--direct` creates a candidate while prior active guidance stays in use. Gather real evidence for the original complaint and at least three unseen blind comparisons. Never pass the example evaluation as real evidence. Use `library evaluate NAME --file EVIDENCE.json`, then `library approve NAME` only for an explicitly approved named change. Do not start paid evaluation runs without authorization.
+- Approval starts a five-run trial. After human evaluation of a run that used it, `library outcome NAME --run-id RUN_ID --accepted` records success; omit accepted for rejection. Use `--constraint-lost` or `--metric-worse` when observed. Failure restores prior guidance and pauses the candidate. Unknown cost stays unknown; agent agreement is not quality evidence.
+- Inspect, edit, disable (`library disable NAME`) or undo (`library undo NAME [--version N]`). Preserve provenance. No retraining, permission expansion, silent model switching or hidden global memory.
+
+### Transfer context without making the user relay it
+
+Same-provider workers natively fork the originating conversation, even when their selected model differs. Cross-provider workers are new persistent sessions: they cannot inherit the other provider's native conversation state. Assemble their context handoff yourself from the relevant context available in this conversation, before launching. Include:
+
+- The user's goal and requested output, with important wording preserved.
+- Explicit decisions, constraints, non-goals, and permission boundaries.
+- Relevant history, prior attempts, rejected alternatives, and why they were rejected.
+- Concrete facts, code/document excerpts, paths, source revisions, evidence, and unresolved questions.
+- What is missing or uncertain, including context hidden by compaction or unavailable tools.
+
+For a long handoff, write a private UTF-8 temporary file outside tracked project files and pass `--context-file`; for a short one use `--context`. Share only context relevant to this task, not secrets or unrelated conversations. The handoff is versioned in the run. It is not identical provider-internal state; do not claim otherwise. If relevant raw conversation excerpts are available and needed, include them rather than replacing crucial details with a vague summary. The user should not have to compose this packet.
+
+Documents are optional. Use `--document` for a local file or public URL. For private documents, retrieve them using existing authorized tools and pass the original URL with `--snapshot FILE` and `--source-revision`. For Notion, include all comment threads and resolve truncation/pagination before asserting `--comments-complete`. Workers operate on the supplied snapshot and context, not unrestricted document tools.
+
+### Launch and return
+
+Use this shape, filling in identities from the origin metadata and the user's selections:
+
+```bash
+breakout launch --from-provider PROVIDER --from-session ORIGIN_ID \
+  --task 'Requested outcome' --context-file HANDOFF_FILE \
+  --agent '{"provider":"claude","model":"CHOSEN_MODEL","effort":"medium","name":"Pragmatist","personality":"Seek the smallest workable design"}' \
+  --agent '{"provider":"codex","model":"CHOSEN_MODEL","effort":"medium","name":"Skeptic","personality":"Challenge failure modes and unsupported claims"}' \
+  --issue 'Explicit issue to resolve'
+```
+
+Workers stay in the origin project, and the result is addressed only to the origin session. For a clearly scoped request, pass its issues directly. For a broad request, omit `--issue`: both workers scan, then present their combined issue list once and submit the user's choice with `breakout select ID I1 I2`.
+
+Report the breakout ID, worker names/providers, and that the discussion is running. The daemon continues independently. Do not relay peer messages manually. Use `steer ID 'TEXT'` for deliberate updates, `decide ID 'DECISION'` for user decisions, and stable `--event-id` values when retrying the same update. Use `pause`, `resume`, or `end` as requested. Reconcile unknown outcomes from provider evidence; a timeout is not evidence that no turn started.
+
+When a hook supplies a completion notice, retrieve `breakout result ID` and `breakout transcript ID`, then bring the recommendation, proposed changes, evidence gaps, disagreements, and user decisions back into this conversation. Acknowledge only after reading: `breakout ack --provider ORIGIN_PROVIDER --session ORIGIN_ID ID REVISION`. Do not say the user received a result just because it was queued. Hook delivery currently occurs at a supported subsequent checkpoint; automatic idle-session wakeup is not verified.
+
+For the legacy workflow where the user explicitly selects two existing conversations, use `breakout start` and the session registry. That workflow returns to both selected parents. Do not substitute it for the one-origin experience.
+
+A breakout authorizes discussion and a proposed deliverable only. It does not authorize implementing product ideas, writing the source document, or posting comments. Recheck source freshness before any separately authorized downstream edit.
+
+## Examples
+
+<!-- Source: examples/review.txt -->
+
+### examples/review.txt
+
+```text
+Local review service proposal
+
+The service stores review results locally and provides a command to retrieve them.
+When a provider disconnects, retry the request automatically.
+Two agents agreeing is sufficient to mark an issue resolved.
+The user can pause a review and continue it later.
+
+Open questions:
+- How do we avoid replaying a turn whose outcome is unknown?
+- What evidence is needed before marking an issue resolved?
+- What should happen when a source document changes during review?
+```
+
+<!-- Source: examples/access-map.toml -->
+
+### examples/access-map.toml
+
+```toml
+# Supported v2 access map. Credential references only.
+version = 2
+
+[defaults]
+rounds = 4
+wall_clock_minutes = 12
+review_replies = 10
+context_bytes = 1048576
+
+[connections.codex_local]
+adapter = "codex_cli"
+auth = "existing_cli_login"
+
+[connections.claude_local]
+adapter = "claude_cli"
+auth = "existing_cli_login"
+
+# Optional; no context is sent until this connection is explicitly authorized.
+[connections.hf_router]
+adapter = "openai_chat"
+base_url = "https://router.huggingface.co/v1"
+api_key_env = "HF_TOKEN"
+data_policy = "ask_before_first_send"
+supported_options = ["max_tokens", "response_format"]
+
+[profiles.sol]
+connection = "codex_local"
+model = "gpt-6.1-sol"
+effort = "medium"
+
+[profiles.opus]
+connection = "claude_local"
+model = "claude-opus-5-5"
+effort = "medium"
+
+[profiles.hf]
+connection = "hf_router"
+model = "REPLACE_WITH_ID_ADVERTISED_BY_MODELS_ENDPOINT"
+max_output_tokens = 2048
+json_mode = true
+
+[personalities.architect]
+instructions = "Turn ambition into a focused, testable design. Explain tradeoffs and preserve user decisions. Write in plain language."
+
+[personalities.visionary_designer]
+instructions = "A designer and product visionary. Apply product simplicity, ecosystem thinking and first-principles questioning. Challenge friction and unclear assumptions. Draw inspiration from public design approaches without claiming to be a real person."
+
+[teams.rfc]
+members = [
+  { name = "Architect", profile = "opus", personality = "architect", role = "author" },
+  { name = "Sol", profile = "sol", personality = "visionary_designer", role = "reviewer" },
+]
+
+# Example three-member team. Set profiles.hf.model and HF_TOKEN before live use.
+[teams.extended]
+members = [
+  { name = "Architect", profile = "opus", personality = "architect", role = "author" },
+  { name = "Sol", profile = "sol", personality = "visionary_designer", role = "reviewer" },
+  { name = "Researcher", profile = "hf", personality = "architect", role = "advisory" },
+]
+```
+
+<!-- Source: examples/learning-evaluation.json -->
+
+### examples/learning-evaluation.json
+
+```json
+{
+  "complaint_fixed": true,
+  "unseen": [
+    {"blind": true, "preference": "new", "major_regression": false, "reference": "REPLACE: human comparison of unseen case 1"},
+    {"blind": true, "preference": "tie", "major_regression": false, "reference": "REPLACE: human comparison of unseen case 2"},
+    {"blind": true, "preference": "tie", "major_regression": false, "reference": "REPLACE: human comparison of unseen case 3"}
+  ],
+  "hard_constraints_lost": 0,
+  "time_compared": true,
+  "cost_impact": "unknown",
+  "evidence": "ILLUSTRATIVE ONLY: replace with actual evaluation record; this file is not evidence"
+}
+```
